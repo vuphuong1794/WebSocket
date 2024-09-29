@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #loginSection, #chatSection { border: 1px solid #ccc; padding: 20px; margin-top: 20px; }
+        #messages { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        #usernameInput, #messageInput { width: 70%; padding: 5px; margin-right: 10px; }
+        button { padding: 5px 10px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Chat Client</h1>
+    
+    <div id="loginSection">
+        <h2>Đăng nhập</h2>
+        <input type="text" id="usernameInput" placeholder="Nhập tên của bạn">
+        <button onclick="setUsername()">Đăng nhập</button>
+    </div>
+
+    <div id="chatSection" class="hidden">
+        <h2>Phòng chat</h2>
+        <div id="messages"></div>
+        <input type="text" id="messageInput" placeholder="Nhập tin nhắn...">
+        <button onclick="sendMessage()">Gửi</button>
+    </div>
+
+    <script>
+        const socket = new WebSocket('ws://localhost:8000');
+        let username = '';
+
+        socket.onopen = function(e) {
+            console.log("Kết nối đã được thiết lập");
+            appendMessage("Đã kết nối tới máy chủ WebSocket");
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log('Dữ liệu nhận được từ máy chủ:', data);
+
+            switch(data.type) {
+                case 'welcome':
+                    appendMessage(data.message);
+                    break;
+                case 'usernameSet':
+                    username = data.username;
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('chatSection').classList.remove('hidden');
+                    appendMessage(`Xin chào, ${username}! Bạn đã tham gia vào phòng chat.`);
+                    break;
+                case 'chatMessage':
+                    appendMessage(`${data.username}: ${data.message}`);
+                    break;
+            }
+        };
+
+        socket.onclose = function(event) {
+            if (event.wasClean) {
+                console.log(`Kết nối đóng một cách sạch sẽ, mã=${event.code} lý do=${event.reason}`);
+            } else {
+                console.log('Kết nối bị ngắt');
+            }
+            appendMessage("Đã ngắt kết nối từ máy chủ WebSocket");
+        };
+
+        socket.onerror = function(error) {
+            console.log(`Lỗi WebSocket: ${error.message}`);
+            appendMessage(`Lỗi: ${error.message}`);
+        };
+
+        function setUsername() {
+            const usernameInput = document.getElementById('usernameInput');
+            const newUsername = usernameInput.value.trim();
+            if (newUsername) {
+                socket.send(JSON.stringify({ type: 'setUsername', username: newUsername }));
+            } else {
+                alert('Vui lòng nhập tên hợp lệ');
+            }
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.send(JSON.stringify({ type: 'chatMessage', message: message }));
+                appendMessage(`Bạn: ${message}`);
+                messageInput.value = '';
+            }
+        }
+
+        function appendMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('p');
+            messageElement.textContent = message;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Cho phép gửi tin nhắn bằng phím Enter
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Cho phép đặt tên người dùng bằng phím Enter
+        document.getElementById('usernameInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                setUsername();
+            }
+        });
+    </script>
+</body>
+</html>
